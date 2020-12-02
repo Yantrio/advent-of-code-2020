@@ -16,15 +16,13 @@ fn parse(input: &str) -> Option<Vec<usize>> {
     input.lines().map(|s| s.parse().ok()).collect()
 }
 
-fn find_result(expenses: &Vec<usize>, amount_of_numbers: usize) -> Option<usize> {
-    match expenses
+fn find_result(expenses: &Vec<usize>, amount_of_numbers: usize) -> usize {
+    expenses
         .iter()
         .combinations(amount_of_numbers)
         .find(|c| c.iter().map(|&&x| x).sum::<usize>() == 2020)
-    {
-        Some(combination) => Some(combination.iter().map(|&&x| x).product()),
-        None => None,
-    }
+        .map(|c| c.iter().map(|&&x| x).product())
+        .unwrap()[0];
 }
 
 #[cfg(test)]
