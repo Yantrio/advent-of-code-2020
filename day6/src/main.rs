@@ -3,11 +3,13 @@ use std::collections::HashSet;
 fn main() {
     let input = String::from(include_str!("input"));
 
-    let p1 = input
-        .split("\n\n")
-        .map(|g| g.chars().filter(|c| *c != '\n').collect::<HashSet<char>>())
-        .map(|f| f.len())
-        .sum::<usize>();
+    let p1 = input.split("\n\n").fold(0, |acc, g| {
+        acc + g
+            .chars()
+            .filter(|c| c.is_alphabetic())
+            .collect::<HashSet<char>>()
+            .len()
+    });
 
     println!("part 1: {:#?}", p1);
 
@@ -21,14 +23,15 @@ fn main() {
 }
 
 fn count_all_answered(group: &Vec<&str>) -> usize {
-    (b'a'..=b'z')
-        .map(char::from)
-        .filter(|l| {
-            group
-                .iter()
-                .map(|g| g.chars().collect::<Vec<char>>())
-                .all(|g| g.contains(l))
-        })
-        .collect::<Vec<char>>()
-        .len()
+    let alphabet = (b'a'..=b'z').map(char::from);
+    alphabet.fold(0, |acc, c| {
+        acc + all_people_answered_yes_to(group, &c) as usize
+    })
+}
+
+fn all_people_answered_yes_to(group: &Vec<&str>, c: &char) -> bool {
+    group
+        .iter()
+        .map(|g| g.chars().collect::<Vec<char>>())
+        .all(|g| g.contains(&c))
 }
