@@ -8,8 +8,7 @@ fn main() {
 
     let p2: usize = groups()
         .map(|g| g.lines().collect::<Vec<&str>>())
-        .map(count_all_answered)
-        .sum();
+        .fold(0, |acc, g| acc + count_all_answered(g));
     println!("part 2: {:#?}", p2);
 }
 
