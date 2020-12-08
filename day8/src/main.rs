@@ -20,7 +20,7 @@ fn pt2(input: &str) -> Option<i64> {
         i.opcode = match i.opcode {
             OpCode::Nop => OpCode::Jmp,
             OpCode::Jmp => OpCode::Nop,
-            _ => unreachable!(),
+            _ => unreachable!(), // should never be called with anything else due to the filter
         }
     };
     Computer::new(input) // make a reference program
@@ -30,8 +30,8 @@ fn pt2(input: &str) -> Option<i64> {
         .filter(|(_, instr)| instr.opcode == OpCode::Jmp || instr.opcode == OpCode::Nop) //find all the ops we need to check
         .map(|(idx, _)| (Computer::new(input), idx)) // create a new program for them
         .map(|(mut c, idx)| {
-            // test the jmp<==>nop conversion
             flip_op(&mut c.instructions[idx as usize]);
+            // test the jmp<==>nop conversion
             match c.does_terminate() {
                 true => Some(c.acc), // return the accumulator if it completes
                 false => None,
@@ -49,6 +49,17 @@ enum OpCode {
     Nop,
 }
 
+impl OpCode {
+    fn from_str(input: &str) -> OpCode {
+        match input {
+            "acc" => OpCode::Acc,
+            "jmp" => OpCode::Jmp,
+            "nop" => OpCode::Nop,
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 struct Instruction {
     opcode: OpCode,
@@ -63,15 +74,6 @@ struct Computer {
 }
 
 impl Computer {
-    fn parse_op_code(input: &str) -> OpCode {
-        match input {
-            "acc" => OpCode::Acc,
-            "jmp" => OpCode::Jmp,
-            "nop" => OpCode::Nop,
-            _ => unreachable!(),
-        }
-    }
-
     fn new(input: &str) -> Self {
         Computer {
             ip: 0,
@@ -95,7 +97,7 @@ impl Computer {
     fn parse_operation(input: &str) -> Instruction {
         let op = input.split_ascii_whitespace().collect::<Vec<&str>>();
         Instruction {
-            opcode: Computer::parse_op_code(op[0]),
+            opcode: OpCode::from_str(op[0]),
             argument: op[1].parse().unwrap(),
         }
     }
@@ -141,7 +143,7 @@ mod day8 {
     }
 
     #[test]
-    fn should_parse_opcodes() {
+    fn should_parse_instructions() {
         test_parse(
             "nop +0",
             Instruction {
