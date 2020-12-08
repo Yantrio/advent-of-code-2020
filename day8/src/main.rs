@@ -1,7 +1,7 @@
 fn main() {
     let input = include_str!("input");
     println!("Part 1: {}", pt1(input));
-    println!("Part 2: {}", pt2(input));
+    println!("Part 2: {}", pt2(input).unwrap());
 }
 
 fn pt1(input: &str) -> i64 {
@@ -15,31 +15,30 @@ fn pt1(input: &str) -> i64 {
     return c.acc;
 }
 
-fn pt2(input: &str) -> i64 {
-    let reference = &mut Computer::new(input);
-
-    // find all jmps and noops
-    let jmp_or_nop: Vec<(usize, &Instruction)> = reference
-        .instructions
-        .iter()
-        .enumerate()
-        .filter(|(_, instr)| instr.opcode == OpCode::Jmp || instr.opcode == OpCode::Nop)
-        .collect();
-
-    for instr in jmp_or_nop {
-        // construct a computer with it swapped, we could be smarter about this but there's no need
-        let c = &mut Computer::new(include_str!("input"));
-        c.instructions[instr.0].opcode = match c.instructions[instr.0].opcode {
+fn pt2(input: &str) -> Option<i64> {
+    let flip_op = |i: &mut Instruction| {
+        i.opcode = match i.opcode {
             OpCode::Nop => OpCode::Jmp,
             OpCode::Jmp => OpCode::Nop,
             _ => unreachable!(),
-        };
-        // if it does terminate, return the accumulator value
-        if c.does_terminate() {
-            return c.acc;
         }
-    }
-    unreachable!()
+    };
+    Computer::new(input) // make a reference program
+        .instructions
+        .iter()
+        .enumerate()
+        .filter(|(_, instr)| instr.opcode == OpCode::Jmp || instr.opcode == OpCode::Nop) //find all the ops we need to check
+        .map(|(idx, _)| (Computer::new(input), idx)) // create a new program for them
+        .map(|(mut c, idx)| {
+            // test the jmp<==>nop conversion
+            flip_op(&mut c.instructions[idx as usize]);
+            match c.does_terminate() {
+                true => Some(c.acc), // return the accumulator if it completes
+                false => None,
+            }
+        })
+        .find(|c| c.is_some())
+        .unwrap()
 }
 
 #[derive(Debug, PartialEq)]
