@@ -30,8 +30,12 @@ fn pt2(input: &str) -> Option<i64> {
         .filter(|(_, instr)| instr.opcode == OpCode::Jmp || instr.opcode == OpCode::Nop) //find all the ops we need to check
         .map(|(idx, _)| (Computer::new(input), idx)) // create a new program for them
         .map(|(mut c, idx)| {
-            flip_op(&mut c.instructions[idx as usize]);
-            // test the jmp<==>nop conversion
+            // flip nop and jmp at the idx
+            flip_op(c.instruction_at(idx));
+            c
+        })
+        .map(|mut c| {
+            // test the swapped operator
             match c.does_terminate() {
                 true => Some(c.acc), // return the accumulator if it completes
                 false => None,
@@ -102,8 +106,16 @@ impl Computer {
         }
     }
 
+    fn instruction_at(&mut self, idx: usize) -> &mut Instruction {
+        &mut self.instructions[idx as usize]
+    }
+
+    fn current_instruction(&mut self) -> &Instruction {
+        self.instruction_at(self.ip as usize)
+    }
+
     fn step(&mut self) {
-        let curr = &self.instructions[self.ip as usize];
+        let curr = self.current_instruction();
         match curr.opcode {
             OpCode::Acc => {
                 self.acc += curr.argument;
