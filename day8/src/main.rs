@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 fn main() {
     let input = include_str!("input");
     println!("Part 1: {}", pt1(input));
@@ -5,7 +7,7 @@ fn main() {
 }
 
 fn pt1(input: &str) -> i64 {
-    let c = &mut Computer::new(input);
+    let c: &mut Computer = &mut input.parse().unwrap();
 
     let mut seen_ips: Vec<i64> = Vec::new();
     while !seen_ips.contains(&c.ip) {
@@ -23,12 +25,15 @@ fn pt2(input: &str) -> Option<i64> {
             _ => unreachable!(), // should never be called with anything else due to the filter
         }
     };
-    Computer::new(input) // make a reference program
+
+    input
+        .parse::<Computer>()
+        .unwrap() // make a reference program
         .instructions
         .iter()
         .enumerate()
-        .filter(|(_, instr)| instr.opcode == OpCode::Jmp || instr.opcode == OpCode::Nop) //find all the ops we need to check
-        .map(|(idx, _)| (Computer::new(input), idx)) // create a new program for them
+        .filter(|(_, instr)| instr.opcode == OpCode::Jmp || instr.opcode == OpCode::Nop)
+        .map(|(idx, _)| (input.parse::<Computer>().unwrap(), idx))
         .map(|(mut c, idx)| {
             // flip nop and jmp at the idx
             flip_op(c.instruction_at(idx));
@@ -53,13 +58,14 @@ enum OpCode {
     Nop,
 }
 
-impl OpCode {
-    fn from_str(input: &str) -> OpCode {
-        match input {
-            "acc" => OpCode::Acc,
-            "jmp" => OpCode::Jmp,
-            "nop" => OpCode::Nop,
-            _ => unreachable!(),
+impl FromStr for OpCode {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "acc" => Ok(OpCode::Acc),
+            "jmp" => Ok(OpCode::Jmp),
+            "nop" => Ok(OpCode::Nop),
+            _ => Err(()),
         }
     }
 }
@@ -70,6 +76,17 @@ struct Instruction {
     argument: i64,
 }
 
+impl FromStr for Instruction {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let op = s.split_ascii_whitespace().collect::<Vec<&str>>();
+        Ok(Instruction {
+            opcode: op[0].parse().unwrap(),
+            argument: op[1].parse().unwrap(),
+        })
+    }
+}
+
 #[derive(Debug)]
 struct Computer {
     pub ip: i64,
@@ -77,18 +94,18 @@ struct Computer {
     pub instructions: Vec<Instruction>,
 }
 
-impl Computer {
-    fn new(input: &str) -> Self {
-        Computer {
+impl FromStr for Computer {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Computer {
             ip: 0,
             acc: 0,
-            instructions: input
-                .lines()
-                .map(|l| Computer::parse_operation(l))
-                .collect(),
-        }
+            instructions: s.lines().map(|s| s.parse().unwrap()).collect(),
+        })
     }
+}
 
+impl Computer {
     fn reset(&mut self) {
         self.ip = 0;
         self.acc = 0;
@@ -96,14 +113,6 @@ impl Computer {
 
     fn print(&self) {
         println!("IP {}, ACC {}", self.ip, self.acc);
-    }
-
-    fn parse_operation(input: &str) -> Instruction {
-        let op = input.split_ascii_whitespace().collect::<Vec<&str>>();
-        Instruction {
-            opcode: OpCode::from_str(op[0]),
-            argument: op[1].parse().unwrap(),
-        }
     }
 
     fn instruction_at(&mut self, idx: usize) -> &mut Instruction {
@@ -130,8 +139,8 @@ impl Computer {
         let mut seen_ips: Vec<i64> = Vec::new();
         loop {
             match seen_ips.contains(&self.ip) {
-                true => return false, // we dont have comparisons yet
-                false => match self.ip >= self.instructions.len() as i64 {
+                true => return false, // looped, because we dont have comparisons, we know this wont return!
+                false => match self.is_done() {
                     true => return true,
                     false => {
                         seen_ips.push(self.ip);
@@ -141,16 +150,19 @@ impl Computer {
             }
         }
     }
+
+    fn is_done(&mut self) -> bool {
+        self.ip >= self.instructions.len() as i64
+    }
 }
 
 #[cfg(test)]
 mod day8 {
-    use super::Computer;
     use super::Instruction;
     use super::OpCode;
 
     fn test_parse(str: &str, expected: Instruction) {
-        let res = Computer::parse_operation(str);
+        let res = str.parse::<Instruction>().unwrap();
         assert_eq!(res, expected);
     }
 
