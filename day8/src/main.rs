@@ -1,53 +1,41 @@
-use std::str::FromStr;
+use std::{collections::HashSet, str::FromStr};
 
 fn main() {
     let input = include_str!("input");
     println!("Part 1: {}", pt1(input));
-    println!("Part 2: {}", pt2(input).unwrap());
+    println!("Part 2: {}", pt2(input));
 }
 
 fn pt1(input: &str) -> i64 {
-    let c: &mut Computer = &mut input.parse().unwrap();
-
-    let mut seen_ips: Vec<i64> = Vec::new();
-    while !seen_ips.contains(&c.ip) {
-        seen_ips.push(c.ip);
-        c.step();
-    }
-    return c.acc;
+    let mut c = input.parse::<Computer>().unwrap();
+    c.run_to_end_or_loop().err().unwrap()
 }
 
-fn pt2(input: &str) -> Option<i64> {
-    let flip_op = |i: &mut Instruction| {
-        i.opcode = match i.opcode {
-            OpCode::Nop => OpCode::Jmp,
-            OpCode::Jmp => OpCode::Nop,
-            _ => unreachable!(), // should never be called with anything else due to the filter
-        }
-    };
-
-    input
-        .parse::<Computer>()
-        .unwrap() // make a reference program
-        .instructions
+fn pt2(input: &str) -> i64 {
+    let reference = input.parse::<Computer>().unwrap().instructions;
+    // make a reference program
+    reference
         .iter()
         .enumerate()
         .filter(|(_, instr)| instr.opcode == OpCode::Jmp || instr.opcode == OpCode::Nop)
         .map(|(idx, _)| (input.parse::<Computer>().unwrap(), idx))
         .map(|(mut c, idx)| {
             // flip nop and jmp at the idx
-            flip_op(c.instruction_at(idx));
-            c
+            flip_at_idx(&mut c, idx);
+            c.run_to_end_or_loop()
         })
-        .map(|mut c| {
-            // test the swapped operator
-            match c.does_terminate() {
-                true => Some(c.acc), // return the accumulator if it completes
-                false => None,
-            }
-        })
-        .find(|c| c.is_some())
+        .find(|r| r.is_ok())
+        .map(|r| r.unwrap())
         .unwrap()
+}
+
+fn flip_at_idx(c: &mut Computer, idx: usize) {
+    let i = c.instruction_at(idx);
+    i.opcode = match i.opcode {
+        OpCode::Nop => OpCode::Jmp,
+        OpCode::Jmp => OpCode::Nop,
+        _ => unreachable!(), // should never be called with anything else due to the filter
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -106,17 +94,8 @@ impl FromStr for Computer {
 }
 
 impl Computer {
-    fn reset(&mut self) {
-        self.ip = 0;
-        self.acc = 0;
-    }
-
-    fn print(&self) {
-        println!("IP {}, ACC {}", self.ip, self.acc);
-    }
-
     fn instruction_at(&mut self, idx: usize) -> &mut Instruction {
-        &mut self.instructions[idx as usize]
+        &mut self.instructions[idx]
     }
 
     fn current_instruction(&mut self) -> &Instruction {
@@ -135,18 +114,16 @@ impl Computer {
         }
     }
 
-    fn does_terminate(&mut self) -> bool {
-        let mut seen_ips: Vec<i64> = Vec::new();
+    fn run_to_end_or_loop(&mut self) -> Result<i64, i64> {
+        let mut seen_ips: HashSet<i64> = HashSet::new();
         loop {
-            match seen_ips.contains(&self.ip) {
-                true => return false, // looped, because we dont have comparisons, we know this wont return!
-                false => match self.is_done() {
-                    true => return true,
-                    false => {
-                        seen_ips.push(self.ip);
-                        self.step();
-                    }
-                },
+            match (seen_ips.contains(&self.ip), (self.is_done())) {
+                (true, _) => return Err(self.acc),
+                (_, false) => return Ok(self.acc),
+                _ => {
+                    seen_ips.insert(self.ip);
+                    self.step();
+                }
             }
         }
     }
