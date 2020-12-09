@@ -119,7 +119,7 @@ impl Computer {
         loop {
             match (seen_ips.contains(&self.ip), (self.is_done())) {
                 (true, _) => return Err(self.acc),
-                (_, false) => return Ok(self.acc),
+                (_, true) => return Ok(self.acc),
                 _ => {
                     seen_ips.insert(self.ip);
                     self.step();
