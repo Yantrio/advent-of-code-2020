@@ -41,8 +41,9 @@ fn part2(input: &(usize, Vec<(usize, usize)>)) -> usize {
 
     let (u, m): (Vec<_>, Vec<_>) = busses
         .iter()
-        .map(|&(i, bus)| (-(i as i64), bus as i64))
+        .map(|&(bus_idx, bus)| (-(bus_idx as i64), bus as i64))
         .unzip();
 
+    // super helpful: https://www.dave4math.com/mathematics/chinese-remainder-theorem/
     chinese_remainder_theorem(&u, &m).unwrap() as usize
 }
