@@ -1,45 +1,48 @@
 use std::{collections::HashMap, ops::RangeInclusive, str::FromStr};
 
 fn main() {
-    let mut grid: Grid = include_str!("input").parse().unwrap();
+    let input = include_str!("input");
 
-    for _ in 0..6 {
-        grid = step_pt1(&grid);
-        // grid.print();
-    }
-    println!("Part 1: {}", grid.count_active());
+    println!("Part 1: {}", solve(input, 3));
+    println!("Part 1: {}", solve(input, 4));
 }
 
-fn step_pt1(grid: &Grid) -> Grid {
+fn solve(input: &str, dimensions: usize) -> usize {
+    let mut grid: Grid = input.parse().unwrap();
+
+    for i in 0..6 {
+        grid = step_pt1(&grid, dimensions);
+        // grid.print();
+        // println!("{} {}", i, grid.count_active())
+    }
+    grid.count_active()
+}
+
+fn step_pt1(grid: &Grid, dimensions: usize) -> Grid {
     let mut new_grid = Grid::new();
 
-    let bounds = grid.get_bounds();
+    let b = grid.get_bounds();
+    for z in b.3.clone() {
+        for y in b.2.clone() {
+            for x in b.1.clone() {
+                for w in if dimensions == 4 { b.0.clone() } else { 0..=0 } {
+                    let pos = Position { x, y, z, w };
+                    let is_active = grid.cubes.get(&pos).unwrap_or(&false);
 
-    let new_bounds = (
-        bounds.0.start() - 1..=bounds.0.end() + 1,
-        bounds.1.start() - 1..=bounds.1.end() + 1,
-        bounds.2.start() - 1..=bounds.2.end() + 1,
-    );
-    // iterate all
+                    let active_neighbour_count = pos
+                        .get_neighbouring_positions(dimensions)
+                        .iter()
+                        .map(|p| grid.cubes.get(&p))
+                        .filter(|&n| *n.unwrap_or(&false))
+                        .count();
 
-    for z in new_bounds.2.clone() {
-        for y in new_bounds.1.clone() {
-            for x in new_bounds.0.clone() {
-                let pos = Position { x, y, z };
-                let is_active = grid.cubes.get(&pos).unwrap_or(&false);
+                    let will_be_active = match (is_active, active_neighbour_count) {
+                        (true, 2) | (true, 3) | (false, 3) => true,
+                        _ => false,
+                    };
 
-                let active_neighbour_count = pos
-                    .get_neighbouring_positions()
-                    .map(|p| grid.cubes.get(&p))
-                    .filter(|&n| *n.unwrap_or(&false))
-                    .count();
-
-                let will_be_active = match (is_active, active_neighbour_count) {
-                    (true, 2) | (true, 3) | (false, 3) => true,
-                    _ => false,
-                };
-
-                new_grid.cubes.insert(pos.clone(), will_be_active);
+                    new_grid.cubes.insert(pos.clone(), will_be_active);
+                }
             }
         }
     }
@@ -49,47 +52,36 @@ fn step_pt1(grid: &Grid) -> Grid {
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 struct Position {
+    w: isize,
     x: isize,
     y: isize,
     z: isize,
 }
 
 impl Position {
-    fn get_neighbouring_positions(&self) -> impl Iterator<Item = Position> + '_ {
-        [
-            (-1, -1, -1),
-            (-1, -1, 0),
-            (-1, -1, 1),
-            (-1, 0, -1),
-            (-1, 0, 0),
-            (-1, 0, 1),
-            (-1, 1, -1),
-            (-1, 1, 0),
-            (-1, 1, 1),
-            (0, -1, -1),
-            (0, -1, 0),
-            (0, -1, 1),
-            (0, 0, -1),
-            (0, 0, 1),
-            (0, 1, -1),
-            (0, 1, 0),
-            (0, 1, 1),
-            (1, -1, -1),
-            (1, -1, 0),
-            (1, -1, 1),
-            (1, 0, -1),
-            (1, 0, 0),
-            (1, 0, 1),
-            (1, 1, -1),
-            (1, 1, 0),
-            (1, 1, 1),
-        ]
-        .iter()
-        .map(move |neigh| Position {
-            x: self.x + neigh.0,
-            y: self.y + neigh.1,
-            z: self.z + neigh.2,
-        })
+    fn get_neighbouring_positions(&self, dimensions: usize) -> Vec<Position> {
+        let mut result = vec![];
+
+        for z in if dimensions >= 1 { -1..=1 } else { 0..=0 } {
+            for y in if dimensions >= 2 { -1..=1 } else { 0..=0 } {
+                for x in if dimensions >= 3 { -1..=1 } else { 0..=0 } {
+                    for w in if dimensions >= 4 { -1..=1 } else { 0..=0 } {
+                        match (w, x, y, z) {
+                            (0, 0, 0, 0) => {}
+                            _ => {
+                                result.push(Position {
+                                    w: self.w + w,
+                                    x: self.x + x,
+                                    y: self.y + y,
+                                    z: self.z + z,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        result
     }
 }
 
@@ -106,6 +98,7 @@ impl FromStr for Grid {
             for (x, c) in line.chars().enumerate() {
                 cubes.insert(
                     Position {
+                        w: 0,
                         x: x as isize,
                         y: y as isize,
                         z: 0,
@@ -123,6 +116,13 @@ impl FromStr for Grid {
     }
 }
 
+type Bounds = (
+    RangeInclusive<isize>,
+    RangeInclusive<isize>,
+    RangeInclusive<isize>,
+    RangeInclusive<isize>,
+);
+
 impl Grid {
     fn new() -> Grid {
         Grid {
@@ -130,22 +130,18 @@ impl Grid {
         }
     }
 
-    fn get_bounds(
-        &self,
-    ) -> (
-        RangeInclusive<isize>,
-        RangeInclusive<isize>,
-        RangeInclusive<isize>,
-    ) {
-        let max_x = self.cubes.iter().map(|(p, _)| p.x).max().unwrap();
-        let max_y = self.cubes.iter().map(|(p, _)| p.y).max().unwrap();
-        let max_z = self.cubes.iter().map(|(p, _)| p.z).max().unwrap();
+    fn get_bounds(&self) -> Bounds {
+        let max_w = self.cubes.iter().map(|(p, _)| p.w).max().unwrap() + 1;
+        let max_x = self.cubes.iter().map(|(p, _)| p.x).max().unwrap() + 1;
+        let max_y = self.cubes.iter().map(|(p, _)| p.y).max().unwrap() + 1;
+        let max_z = self.cubes.iter().map(|(p, _)| p.z).max().unwrap() + 1;
 
-        let min_x = self.cubes.iter().map(|(p, _)| p.x).min().unwrap();
-        let min_y = self.cubes.iter().map(|(p, _)| p.y).min().unwrap();
-        let min_z = self.cubes.iter().map(|(p, _)| p.z).min().unwrap();
+        let min_w = self.cubes.iter().map(|(p, _)| p.w).min().unwrap() - 1;
+        let min_x = self.cubes.iter().map(|(p, _)| p.x).min().unwrap() - 1;
+        let min_y = self.cubes.iter().map(|(p, _)| p.y).min().unwrap() - 1;
+        let min_z = self.cubes.iter().map(|(p, _)| p.z).min().unwrap() - 1;
 
-        return (min_x..=max_x, min_y..=max_y, min_z..=max_z);
+        return (min_w..=max_w, min_x..=max_x, min_y..=max_y, min_z..=max_z);
     }
 
     fn print_layer(&self, z: isize) {
@@ -154,6 +150,7 @@ impl Grid {
         if on_layer.len() == 0 {
             return;
         }
+
         let max_x = on_layer.iter().max_by_key(|p| p.0.x).unwrap().0.x;
         let max_y = on_layer.iter().max_by_key(|p| p.0.y).unwrap().0.y;
 
@@ -163,7 +160,7 @@ impl Grid {
         for y in min_y..=max_y {
             let mut line = vec![];
             for x in min_x..=max_x {
-                let c = match self.cubes.get(&Position { x, y, z }) {
+                let c = match self.cubes.get(&Position { x, y, z, w: 0 }) {
                     Some(v) => match v {
                         true => '#',
                         false => '.',
