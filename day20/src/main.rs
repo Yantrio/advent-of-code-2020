@@ -212,14 +212,6 @@ impl FromStr for Tile {
 }
 
 impl Tile {
-    fn get(&self, x: usize, y: usize) -> char {
-        self.pixels[x][y]
-    }
-
-    fn set(&mut self, x: usize, y: usize, data: char) {
-        self.pixels[x][y] = data;
-    }
-
     fn get_borders(&self) -> Vec<String> {
         vec![
             self.pixels[0].iter().collect(),
@@ -243,14 +235,11 @@ impl Tile {
     }
 
     fn rotate_90(&self) -> Tile {
-        let mut res = Tile {
-            id: self.id,
-            pixels: self.pixels.clone(),
-        };
+        let mut res = self.clone();
         let size = self.pixels.len();
         for i in 0..size {
             for j in 0..size {
-                res.set(i, j, self.get(size - j - 1, i));
+                res.pixels[i][j] = self.pixels[size - j - 1][i]
             }
         }
 
