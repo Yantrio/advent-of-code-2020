@@ -79,7 +79,7 @@ fn part2(tiles: &Vec<Tile>, corners: &Vec<&Tile>) -> usize {
 }
 
 fn find_rough_waters_with_monster(grid: &mut Tile) -> usize {
-    // we're cheeky and use a tile so we can orient it easier using our methods from pt1
+    // we're cheeky and use a tile so we can orient it easier using our methods from pt10
     let sea_monster = [
         "                  #",
         "#    ##    ##    ###",
@@ -221,23 +221,12 @@ impl Tile {
     }
 
     fn get_borders(&self) -> Vec<String> {
-        let mut res: Vec<String> = vec![
+        vec![
             self.pixels[0].iter().collect(),
             self.pixels[self.pixels.len() - 1].iter().collect(),
             self.pixels.iter().map(|p| p[0]).collect(),
             self.pixels.iter().map(|p| p[p.len() - 1]).collect(),
-        ];
-
-        // dont forget the mirrored borders
-        res.append(
-            &mut res
-                .clone()
-                .iter()
-                .map(|i| i.chars().rev().collect::<String>())
-                .collect::<Vec<_>>(),
-        );
-
-        res
+        ]
     }
 
     fn get_orientations(&self) -> Vec<Tile> {
