@@ -1,36 +1,34 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-fn main() {
+fn main() -> Result<(), ()> {
     let input = include_str!("input");
     let tiles = get_tiles(input);
-    let (corners, result) = part1(&tiles);
+    let (corners, result) = part1(&tiles)?;
 
     println!("Part 1: {:?}", result);
-    println!("Part 2: {:?}", part2(&tiles, &corners));
+    println!("Part 2: {:?}", part2(&tiles, &corners)?);
+
+    Ok(())
 }
 
-fn part1(tiles: &Vec<Tile>) -> (Vec<&Tile>, usize) {
+fn part1(tiles: &Vec<Tile>) -> Result<(Vec<&Tile>, usize), ()> {
     let mut corners = Vec::new();
 
     for tile in tiles.iter() {
         let (mut n, mut s, mut e, mut w) = (false, false, false, false);
-        for comparison in tiles.iter().filter(|t| t.id != tile.id) {
-            if !n && tile.matches_on_north(comparison).is_some() {
+        for other in tiles.iter().filter(|t| t.id != tile.id) {
+            if tile.matches_north(other).is_some() {
                 n = true;
-            }
-            if !s && tile.matches_on_south(comparison).is_some() {
+            } else if tile.matches_south(other).is_some() {
                 s = true;
-            }
-            if !e && tile.matches_on_west(comparison).is_some() {
+            } else if tile.matches_east(other).is_some() {
                 e = true;
-            }
-            if !w && tile.matches_on_east(comparison).is_some() {
+            } else if tile.matches_west(other).is_some() {
                 w = true;
             }
         }
         match (n, s, e, w) {
-            //TL, TR, BL, BR
             (false, true, true, false)
             | (false, true, false, true)
             | (true, false, true, false)
@@ -38,47 +36,31 @@ fn part1(tiles: &Vec<Tile>) -> (Vec<&Tile>, usize) {
             _ => {}
         };
     }
-    (
+    Ok((
         corners.clone(),
         corners.iter().map(|c| c.id).product::<usize>(),
-    )
+    ))
 }
 
-fn part2(tiles: &Vec<Tile>, corners: &Vec<&Tile>) -> usize {
-    // solve left edge by getting top left corner first
-    // find top left, then go down!
-    // then go across going down each column in the same way
+fn filter_tiles<'a>(tiles: &'a Vec<Tile>, unwanted_id: usize) -> impl Iterator<Item = &Tile> {
+    tiles.into_iter().filter(move |t| t.id != unwanted_id)
+}
 
-    let top_left = corners[0];
-
-    let mut poss = vec![];
-    for o in top_left.get_orientations().into_iter() {
-        let match_down = tiles
-            .iter()
-            .filter(|t| t.id != top_left.id)
-            .find(|t| o.matches_on_south(t).is_some());
-
-        let match_right = tiles
-            .iter()
-            .filter(|t| t.id != top_left.id)
-            .find(|t| o.matches_on_east(t).is_some());
-
-        if match_down.is_some() && match_right.is_some() {
-            poss.push(o);
-        }
-    }
-
-    let grid = poss
+fn part2(tiles: &Vec<Tile>, corners: &Vec<&Tile>) -> Result<usize, ()> {
+    let grid = corners[0]
+        .get_orientations()
         .iter()
-        .map(|p| get_grid(tiles, &p))
+        .filter(|o| filter_tiles(tiles, corners[0].id).any(|t| o.matches_south(t).is_some()))
+        .filter(|o| filter_tiles(tiles, corners[0].id).any(|t| o.matches_west(t).is_some()))
+        .map(|t| get_grid(tiles, t))
         .find(Result::is_ok)
-        .unwrap()
-        .unwrap();
+        .map(|grid| grid.unwrap())
+        .ok_or_else(|| ())?;
 
-    find_rough_waters_with_monster(&mut grid_to_tile(&grid))
+    Ok(find_rough_waters_with_monster(&mut grid_to_tile(&grid)?)?)
 }
 
-fn find_rough_waters_with_monster(grid: &mut Tile) -> usize {
+fn find_rough_waters_with_monster(grid: &mut Tile) -> Result<usize, ()> {
     // we're cheeky and use a tile so we can orient it easier using our methods from pt10
     let sea_monster = [
         "                  #",
@@ -89,27 +71,26 @@ fn find_rough_waters_with_monster(grid: &mut Tile) -> usize {
     let sea_monster_rules: Vec<_> = sea_monster
         .iter()
         .enumerate()
-        .flat_map(|(row, &line)| {
+        .flat_map(|(x, &line)| {
             line.chars()
                 .enumerate()
-                .filter_map(move |(col, c)| match c == '#' {
-                    true => Some((row, col)),
-                    false => None,
-                })
+                .filter(move |(_, c)| '#' == *c)
+                .map(move |(y, _)| (x, y))
         })
         .collect();
 
-    for mut o in grid.get_orientations() {
+    for mut grid_orientation in grid.get_orientations() {
         let mut count = 0;
-        for y in 0..(grid.pixels.len() - sea_monster.len()) {
-            for x in 0..(grid.pixels.len() - sea_monster[0].len()) {
+
+        for x in 0..(grid.pixels.len() - sea_monster[0].len()) {
+            for y in 0..(grid.pixels.len() - sea_monster.len()) {
                 let found_sea_monster = sea_monster_rules
                     .iter()
-                    .all(|(dy, dx)| o.pixels[y + dy][x + dx] == '#');
+                    .all(|(dy, dx)| grid_orientation.pixels[y + dy][x + dx] == '#');
 
                 if found_sea_monster {
                     for &(dy, dx) in sea_monster_rules.iter() {
-                        o.pixels[y + dy][x + dx] = 'O'
+                        grid_orientation.pixels[y + dy][x + dx] = 'O'
                     }
                     count += 1;
                 }
@@ -117,20 +98,18 @@ fn find_rough_waters_with_monster(grid: &mut Tile) -> usize {
         }
 
         if count > 0 {
-            return o
+            return Ok(grid_orientation
                 .pixels
                 .iter()
                 .map(|l| l.iter().filter(|&&c| c == '#').count())
-                .sum::<usize>();
+                .sum::<usize>());
         }
     }
-    unreachable!();
+    Err(())
 }
 
 type Grid = HashMap<(usize, usize), Tile>;
 fn get_grid(tiles: &Vec<Tile>, top_left: &Tile) -> Result<Grid, ()> {
-    let all_tiles_but = |id: usize| tiles.into_iter().filter(move |t| t.id != id);
-
     let mut grid = HashMap::new();
     grid.insert((0, 0), top_left.clone());
 
@@ -139,22 +118,22 @@ fn get_grid(tiles: &Vec<Tile>, top_left: &Tile) -> Result<Grid, ()> {
     // iterate columns and fill those out too!
     for x in 0..grid_size {
         if x != 0 {
-            let up_left = grid.get(&(x - 1, 0)).unwrap();
-            let found = all_tiles_but(up_left.id)
-                .map(|t| up_left.matches_on_east(t))
+            let up_left = grid.get(&(x - 1, 0)).ok_or_else(|| ())?;
+            let found = filter_tiles(tiles, up_left.id)
+                .map(|t| up_left.matches_west(t))
                 .find(Option::is_some)
-                .unwrap()
-                .unwrap();
+                .map(|t| t.unwrap())
+                .ok_or_else(|| ())?;
 
             grid.insert((x, 0), found);
         }
 
         for y in 1..grid_size {
-            let above = grid.get(&(x, y - 1)).unwrap();
-            let found = all_tiles_but(above.id)
-                .map(|t| above.matches_on_south(t))
+            let above = grid.get(&(x, y - 1)).ok_or_else(|| ())?;
+            let found = filter_tiles(tiles, above.id)
+                .map(|t| above.matches_south(t))
                 .find(Option::is_some)
-                .ok_or_else(|| ())?
+                .map(|t| t.unwrap())
                 .ok_or_else(|| ())?;
 
             grid.insert((x, y), found);
@@ -164,8 +143,8 @@ fn get_grid(tiles: &Vec<Tile>, top_left: &Tile) -> Result<Grid, ()> {
     Ok(grid)
 }
 
-fn grid_to_tile(grid: &Grid) -> Tile {
-    let tile_size = grid.values().nth(0).unwrap().pixels.len() - 2;
+fn grid_to_tile(grid: &Grid) -> Result<Tile, ()> {
+    let tile_size = grid.values().nth(0).ok_or_else(|| ())?.pixels.len() - 2;
     let grid_size = (grid.values().len() as f32).sqrt() as usize;
     let mut lines = (0..(grid_size * tile_size))
         .map(|_| "".to_string())
@@ -173,15 +152,13 @@ fn grid_to_tile(grid: &Grid) -> Tile {
 
     for y in 0..grid_size {
         for x in 0..grid_size {
-            let current = grid.get(&(x, y)).unwrap();
+            let current = grid.get(&(x, y)).ok_or_else(|| ())?;
             for (idx, st) in current.to_lines_without_borders().iter().enumerate() {
                 lines[(y * tile_size) + idx] += st;
             }
         }
     }
-    ("Tile 0:\n".to_owned() + &lines.join("\n"))
-        .parse::<Tile>()
-        .unwrap()
+    Ok(("Tile 0:\n".to_owned() + &lines.join("\n")).parse::<Tile>()?)
 }
 
 fn get_tiles(input: &str) -> Vec<Tile> {
@@ -275,19 +252,19 @@ impl Tile {
         None
     }
 
-    fn matches_on_north(&self, other: &Tile) -> Option<Tile> {
+    fn matches_north(&self, other: &Tile) -> Option<Tile> {
         self.matches_on_border(other, 0, 1)
     }
 
-    fn matches_on_south(&self, other: &Tile) -> Option<Tile> {
+    fn matches_south(&self, other: &Tile) -> Option<Tile> {
         self.matches_on_border(other, 1, 0)
     }
 
-    fn matches_on_east(&self, other: &Tile) -> Option<Tile> {
+    fn matches_west(&self, other: &Tile) -> Option<Tile> {
         self.matches_on_border(other, 3, 2)
     }
 
-    fn matches_on_west(&self, other: &Tile) -> Option<Tile> {
+    fn matches_east(&self, other: &Tile) -> Option<Tile> {
         self.matches_on_border(other, 2, 3)
     }
 
