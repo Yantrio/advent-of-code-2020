@@ -1,5 +1,5 @@
-use std::collections::HashMap;
-use std::str::FromStr;
+use std::{collections::HashMap, iter::Skip};
+use std::{iter, str::FromStr};
 
 fn main() -> Result<(), ()> {
     let input = include_str!("input");
@@ -269,11 +269,13 @@ impl Tile {
     }
 
     fn to_lines_without_borders(&self) -> Vec<String> {
-        self.pixels
-            .iter()
-            .skip(1)
-            .take(self.pixels.len() - 2)
-            .map(|line| line.iter().skip(1).take(line.len() - 2).collect::<String>())
-            .collect::<Vec<_>>()
+        trim(&self.pixels)
+            .map(trim)
+            .map(Iterator::collect)
+            .collect()
     }
+}
+
+fn trim<T: Clone>(input: &Vec<T>) -> impl Iterator<Item = &T> {
+    input.iter().skip(1).take(input.len() - 2)
 }
