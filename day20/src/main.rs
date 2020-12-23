@@ -1,5 +1,5 @@
-use std::{collections::HashMap, iter::Skip};
-use std::{iter, str::FromStr};
+use std::collections::HashMap;
+use std::str::FromStr;
 
 fn main() -> Result<(), ()> {
     let input = include_str!("input");
@@ -18,14 +18,17 @@ fn part1(tiles: &Vec<Tile>) -> Result<(Vec<&Tile>, usize), ()> {
     for tile in tiles.iter() {
         let (mut n, mut s, mut e, mut w) = (false, false, false, false);
         for other in tiles.iter().filter(|t| t.id != tile.id) {
-            if tile.matches_north(other).is_some() {
-                n = true;
-            } else if tile.matches_south(other).is_some() {
-                s = true;
-            } else if tile.matches_east(other).is_some() {
-                e = true;
-            } else if tile.matches_west(other).is_some() {
-                w = true;
+            match (
+                tile.matches_north(other).is_some(),
+                tile.matches_south(other).is_some(),
+                tile.matches_east(other).is_some(),
+                tile.matches_west(other).is_some(),
+            ) {
+                (true, _, _, _) => n = true,
+                (_, true, _, _) => s = true,
+                (_, _, true, _) => e = true,
+                (_, _, _, true) => w = true,
+                _ => {}
             }
         }
         match (n, s, e, w) {
